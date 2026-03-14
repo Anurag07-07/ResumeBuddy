@@ -55,28 +55,29 @@ export const Signin = async (req:Request,res:Response) => {
     const {username,password} = req.body 
 
     //Check User Already present
-    const isPresent = await userSchema.findOne(
-      {username:username}
-    )
+    
+    const isPresent = await userSchema.findOne({username:username}).select('+password')
     if (isPresent) {
       //Check the password
       const isMatched = await bcrypt.compare(password,isPresent.password)
-
+      
       if (isMatched) {
         const token = jwt.sign(
-        {id:isPresent._id,username:username},
-        process.env.JWT_SECRET as string,
-        {expiresIn:"1d"}
-      )
-      
-      //Create A Token
-      res.cookie("token",token)
-      
-      return res.status(200).json({
-        message:`User Login`,
-        user:isPresent
-      })
-      
+          {id:isPresent._id,username:username},
+          process.env.JWT_SECRET as string,
+          {expiresIn:"1d"}
+        )
+        
+        
+        //Create A Token
+        res.cookie("token",`Bearer ${token}`)
+        
+        console.log(4);
+        return res.status(200).json({
+          message:`User Login`,
+          user:isPresent
+        })
+        
       }else{
         return res.status(400).json({
           message:`Invalid email and password`

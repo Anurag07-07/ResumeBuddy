@@ -1,14 +1,16 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import dotenvv from 'dotenv';
+import dotenv from 'dotenv';
 import { dbConnect } from './db/db.js';
-dotenvv.config();
+dotenv.config();
 const app = express();
-const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(cors());
 app.use(cookieParser());
+import userauth from './routes/auth.route.js';
+app.use('/api/v1', userauth);
+const PORT = process.env.PORT || 3000;
 dbConnect();
 app.listen(PORT, () => {
     console.log(`Server Started at PORT ${PORT}`);
