@@ -72,7 +72,6 @@ export const Signin = async (req:Request,res:Response) => {
         //Create A Token
         res.cookie("token",`Bearer ${token}`)
         
-        console.log(4);
         return res.status(200).json({
           message:`User Login`,
           user:isPresent
