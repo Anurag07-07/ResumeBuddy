@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import userSchema, { UserModel } from "../models/user.schema.js";
 import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
+import { redisClient } from "../db/redisClient.js";
 
 export const Signup = async (req:Request,res:Response) => {
   try {
@@ -34,8 +35,11 @@ export const Signup = async (req:Request,res:Response) => {
       )
       
       //Create A Token
-      res.cookie("token",token)
-      
+
+      res.cookie("token", `Bearer ${token}`, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production"
+      });
 
       return res.status(200).json({
         message:`User Created Successfully`,
@@ -70,11 +74,18 @@ export const Signin = async (req:Request,res:Response) => {
         
         
         //Create A Token
-        res.cookie("token",`Bearer ${token}`)
-        
+        res.cookie("token", `Bearer ${token}`, {
+          httpOnly: true, 
+          secure: process.env.NODE_ENV === "production"
+        });
+
         return res.status(200).json({
           message:`User Login`,
-          user:isPresent
+          user:{
+            id:isPresent._id,
+            username:isPresent.username,
+            email:isPresent.email
+          }
         })
         
       }else{
@@ -93,3 +104,29 @@ export const Signin = async (req:Request,res:Response) => {
     })
   }
 }
+
+
+export const Logout = async (req: Request, res: Response) => {
+  try {
+    const rawToken = req.cookies.token;
+
+    if (rawToken && rawToken.startsWith("Bearer ")) {
+      const token = rawToken.split(" ")[1];
+      const decoded = jwt.decode(token) as { exp: number };
+
+      if (decoded && decoded.exp) {
+        const now = Math.floor(Date.now() / 1000);
+        const remainingTime = decoded.exp - now;
+
+        if (remainingTime > 0) {
+          await redisClient.setEx(`bl_${token}`, remainingTime, "true");
+        }
+      }
+    }
+
+    res.clearCookie("token");
+    return res.status(200).json({ message: "Logged out successfully" });
+  } catch (error) {
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};

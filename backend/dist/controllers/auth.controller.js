@@ -49,10 +49,13 @@ export const Signin = async (req, res) => {
                 const token = jwt.sign({ id: isPresent._id, username: username }, process.env.JWT_SECRET, { expiresIn: "1d" });
                 //Create A Token
                 res.cookie("token", `Bearer ${token}`);
-                console.log(4);
                 return res.status(200).json({
                     message: `User Login`,
-                    user: isPresent
+                    user: {
+                        id: isPresent._id,
+                        username: isPresent.username,
+                        email: isPresent.email
+                    }
                 });
             }
             else {

@@ -1,10 +1,14 @@
 import { Router } from "express";
-import { Signin, Signup } from "../controllers/auth.controller.js";
-import authMiddleware from "../middlewares/auth.js";
+import { Signin, Signup, Logout } from "../controllers/auth.controller.js";
+import { authMiddleware } from "../middlewares/auth.js";
 
-const router:Router = Router()
+const router: Router = Router();
 
-router.post('/signup',Signup)
-router.post('/signin',Signin)
+// Public routes
+router.post('/signup', Signup);
+router.post('/signin', Signin);
 
-export default router
+// Protected routes
+router.post('/logout', authMiddleware, Logout);
+
+export default router;
