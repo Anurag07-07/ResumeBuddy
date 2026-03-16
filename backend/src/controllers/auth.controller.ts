@@ -130,3 +130,18 @@ export const Logout = async (req: Request, res: Response) => {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
+
+export const getMe = async (req:Request,res:Response) => {
+  try {
+    //Get The User Details
+    const id = req.userId!
+    let user = await userSchema.findById(id)
+    return res.status(200).json({
+      user:user
+    })
+  } catch (error) {
+    return res.status(500).json({
+      message:`Internal Server Error`
+    })
+  }
+}

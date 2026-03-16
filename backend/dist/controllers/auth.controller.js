@@ -1,6 +1,7 @@
 import userSchema, { UserModel } from "../models/user.schema.js";
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { redisClient } from "../db/redisClient.js";
 export const Signup = async (req, res) => {
     try {
         const { username, email, password } = req.body;
@@ -24,7 +25,10 @@ export const Signup = async (req, res) => {
             });
             const token = jwt.sign({ id: user._id, username: username }, process.env.JWT_SECRET, { expiresIn: "1d" });
             //Create A Token
-            res.cookie("token", token);
+            res.cookie("token", `Bearer ${token}`, {
+                httpOnly: true,
+                secure: process.env.NODE_ENV === "production"
+            });
             return res.status(200).json({
                 message: `User Created Successfully`,
                 user: user
@@ -48,7 +52,10 @@ export const Signin = async (req, res) => {
             if (isMatched) {
                 const token = jwt.sign({ id: isPresent._id, username: username }, process.env.JWT_SECRET, { expiresIn: "1d" });
                 //Create A Token
-                res.cookie("token", `Bearer ${token}`);
+                res.cookie("token", `Bearer ${token}`, {
+                    httpOnly: true,
+                    secure: process.env.NODE_ENV === "production"
+                });
                 return res.status(200).json({
                     message: `User Login`,
                     user: {
@@ -69,6 +76,42 @@ export const Signin = async (req, res) => {
                 message: `User Not Present`
             });
         }
+    }
+    catch (error) {
+        return res.status(500).json({
+            message: `Internal Server Error`
+        });
+    }
+};
+export const Logout = async (req, res) => {
+    try {
+        const rawToken = req.cookies.token;
+        if (rawToken && rawToken.startsWith("Bearer ")) {
+            const token = rawToken.split(" ")[1];
+            const decoded = jwt.decode(token);
+            if (decoded && decoded.exp) {
+                const now = Math.floor(Date.now() / 1000);
+                const remainingTime = decoded.exp - now;
+                if (remainingTime > 0) {
+                    await redisClient.setEx(`bl_${token}`, remainingTime, "true");
+                }
+            }
+        }
+        res.clearCookie("token");
+        return res.status(200).json({ message: "Logged out successfully" });
+    }
+    catch (error) {
+        return res.status(500).json({ message: "Internal Server Error" });
+    }
+};
+export const getMe = async (req, res) => {
+    try {
+        //Get The User Details
+        const id = req.userId;
+        let user = await userSchema.findById(id);
+        return res.status(200).json({
+            user: user
+        });
     }
     catch (error) {
         return res.status(500).json({
