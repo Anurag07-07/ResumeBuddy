@@ -13,11 +13,13 @@ app.use(cors({
 app.use(cookieParser());
 import userauth from "./routes/auth.route.js";
 import { connectRedis } from "./db/redisClient.js";
+import main from "./services/ai.service.js";
 app.use("/api/v1", userauth);
 const PORT = process.env.PORT || 3000;
 const serverStart = async () => {
     try {
         await dbConnect();
+        main();
         await connectRedis();
         app.listen(PORT, () => {
             console.log(`Server Started at PORT ${PORT}`);

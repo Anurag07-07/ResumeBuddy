@@ -18,6 +18,7 @@ app.use(cookieParser());
 
 import userauth from "./routes/auth.route.js";
 import { connectRedis } from "./db/redisClient.js";
+import main from "./services/ai.service.js";
 
 app.use("/api/v1", userauth);
 
