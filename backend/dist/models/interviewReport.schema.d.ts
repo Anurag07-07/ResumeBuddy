@@ -32,6 +32,7 @@ export interface IInterview extends Document {
     behaviouralQuestion: IBehaviouralQuestion[];
     skillGap: ISkill[];
     preparationPlan: IPreparation[];
+    user: mongoose.Types.ObjectId;
 }
 declare const _default: mongoose.Model<IInterview, {}, {}, {}, mongoose.Document<unknown, {}, IInterview, {}, mongoose.DefaultSchemaOptions> & IInterview & Required<{
     _id: mongoose.Types.ObjectId;

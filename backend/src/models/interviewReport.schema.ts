@@ -38,6 +38,7 @@ export interface IInterview extends Document {
   behaviouralQuestion: IBehaviouralQuestion[];
   skillGap: ISkill[];
   preparationPlan: IPreparation[];
+  user:mongoose.Types.ObjectId
 }
 
 
@@ -97,7 +98,11 @@ const interviewSchema = new Schema<IInterview>(
     technicalQuestion: [technicalQuestionSchema],
     behaviouralQuestion: [behaviouralQuestionSchema],
     skillGap: [skillSchema],
-    preparationPlan: [preparationSchema]
+    preparationPlan: [preparationSchema],
+    user:{
+      type:mongoose.Types.ObjectId,
+      ref:"Users"
+    }
   },
   { timestamps: true }
 );

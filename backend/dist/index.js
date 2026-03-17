@@ -6,20 +6,23 @@ import { dbConnect } from "./db/db.js";
 dotenv.config();
 const app = express();
 app.use(express.json());
-app.use(cors({
-    origin: ["http://localhost:3000", "http://localhost:3001"],
-    credentials: true,
-}));
+// app.use(
+//   cors({
+//     origin: ["http://localhost:3000", "http://localhost:3001"],
+//     credentials: true,
+//   })
+// );
+app.use(cors());
 app.use(cookieParser());
 import userauth from "./routes/auth.route.js";
+import interviewRoute from './routes/interview.route.js';
 import { connectRedis } from "./db/redisClient.js";
-import main from "./services/ai.service.js";
 app.use("/api/v1", userauth);
+app.use("/api/v1", interviewRoute);
 const PORT = process.env.PORT || 3000;
 const serverStart = async () => {
     try {
         await dbConnect();
-        main();
         await connectRedis();
         app.listen(PORT, () => {
             console.log(`Server Started at PORT ${PORT}`);

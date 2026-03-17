@@ -14,13 +14,15 @@ app.use(
     credentials: true,
   })
 );
+
 app.use(cookieParser());
 
 import userauth from "./routes/auth.route.js";
+import interviewRoute from './routes/interview.route.js'
 import { connectRedis } from "./db/redisClient.js";
-import main from "./services/ai.service.js";
 
 app.use("/api/v1", userauth);
+app.use("/api/v1", interviewRoute);
 
 const PORT = process.env.PORT || 3000;
 

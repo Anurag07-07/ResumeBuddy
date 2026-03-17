@@ -44,7 +44,11 @@ const interviewSchema = new Schema({
     technicalQuestion: [technicalQuestionSchema],
     behaviouralQuestion: [behaviouralQuestionSchema],
     skillGap: [skillSchema],
-    preparationPlan: [preparationSchema]
+    preparationPlan: [preparationSchema],
+    user: {
+        type: mongoose.Types.ObjectId,
+        ref: "Users"
+    }
 }, { timestamps: true });
 export default mongoose.model("Interview", interviewSchema);
 //# sourceMappingURL=interviewReport.schema.js.map
