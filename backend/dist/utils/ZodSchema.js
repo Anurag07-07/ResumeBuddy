@@ -26,4 +26,32 @@ export const interviewReportSchemaZodd = z.object({
         tasks: z.string().describe("Detailed actionable study steps")
     }))
 });
+// ── Tailored Resume Schema ──────────────────────────────────────────────────
+export const tailoredResumeSchema = z.object({
+    name: z.string().default(""),
+    title: z.string().default(""),
+    email: z.string().nullable().optional().transform(v => v ?? ""),
+    phone: z.string().nullable().optional().transform(v => v ?? ""),
+    location: z.string().nullable().optional().transform(v => v ?? ""),
+    linkedin: z.string().nullable().optional().transform(v => v ?? ""),
+    summary: z.string().default(""),
+    skills: z.array(z.string()).default([]),
+    experience: z.array(z.object({
+        company: z.string().default(""),
+        role: z.string().default(""),
+        duration: z.string().nullable().optional().transform(v => v ?? ""),
+        bullets: z.array(z.string()).default([]),
+    })).default([]),
+    education: z.array(z.object({
+        institution: z.string().default(""),
+        degree: z.string().default(""),
+        year: z.string().nullable().optional().transform(v => v ?? ""),
+    })).default([]),
+    projects: z.array(z.object({
+        name: z.string().default(""),
+        description: z.string().default(""),
+        tech: z.string().nullable().optional().transform(v => v ?? ""),
+    })).default([]),
+    certifications: z.array(z.string()).default([]),
+});
 //# sourceMappingURL=ZodSchema.js.map
