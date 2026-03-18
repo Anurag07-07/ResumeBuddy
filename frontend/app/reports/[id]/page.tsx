@@ -57,8 +57,7 @@ export default function ReportDetailPage() {
       return;
     }
     sessionStorage.setItem("tailored_resume", JSON.stringify(data.data));
-    window.open("/resume-preview", "_blank");
-    setToast({ message: "Resume opened — use Ctrl+P to save as PDF!", type: "success" });
+    router.push("/resume-preview");
   }, [report]);
 
 
