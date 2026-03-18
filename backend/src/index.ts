@@ -13,8 +13,8 @@ const allowedOrigins = [
   "https://resume-buddy-pi.vercel.app",
   "http://localhost:3000",
   "https://resume-buddy-git-main-anurag07-07s-projects.vercel.app",
+  "https://resume-buddy-djgdydw9u-anurag07-07s-projects.vercel.app", // 👈 add this
 ];
-
 app.use(
   cors({
     origin: function (origin, callback) {
