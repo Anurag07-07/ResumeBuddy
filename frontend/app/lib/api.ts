@@ -27,7 +27,6 @@ async function request<T>(
   }
 }
 
-// ── Types ──────────────────────────────────────────────────────────────────
 export interface SignupPayload { username: string; email: string; password: string; }
 export interface SigninPayload { username: string; password: string; }
 export interface UserResponse { message: string; user: { _id: string; username: string; email: string; }; }

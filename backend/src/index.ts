@@ -8,10 +8,8 @@ dotenv.config();
 const app = express();
 
 app.use(express.json());
+
 const allowedOrigins = [
-  "https://resume-buddy-zknd.vercel.app",
-  "http://localhost:3000",
-  "http://localhost:3001",
   "https://resume-buddy-zknd-cfxtv3lmy-anurag07-07s-projects.vercel.app"
 ];
 
