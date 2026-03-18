@@ -4,33 +4,69 @@ import { interviewReportSchemaZodd, tailoredResumeSchema } from "../utils/ZodSch
 const ai = new GoogleGenAI({
     apiKey: process.env.GEMINI_API_KEY
 });
+/** Try to JSON.parse a string; return null on failure. */
+function tryParseJSON(s) {
+    try {
+        return JSON.parse(s);
+    }
+    catch {
+        return null;
+    }
+}
+/**
+ * Gemini sometimes serialises nested objects / arrays as JSON strings
+ * when a responseJsonSchema is supplied.  This pass walks the top-level
+ * arrays we care about and coerces any string element into the expected
+ * object shape.
+ */
 function sanitizeAI(data) {
-    if (typeof data.technicalQuestion?.[0] === "string") {
-        data.technicalQuestion = data.technicalQuestion.map((q) => ({
-            question: q,
-            intention: "Auto-generated intention",
-            answer: "Auto-generated answer"
-        }));
+    // ── technicalQuestion ────────────────────────────────────────────────
+    if (Array.isArray(data.technicalQuestion)) {
+        data.technicalQuestion = data.technicalQuestion.map((q) => {
+            if (typeof q === "string") {
+                const parsed = tryParseJSON(q);
+                if (parsed && typeof parsed === "object" && parsed.question)
+                    return parsed;
+                return { question: q, intention: "Auto-generated intention", answer: "Auto-generated answer" };
+            }
+            return q;
+        });
     }
-    if (typeof data.behaviouralQuestion?.[0] === "string") {
-        data.behaviouralQuestion = data.behaviouralQuestion.map((q) => ({
-            question: q,
-            intention: "Auto-generated intention",
-            answer: "Auto-generated answer"
-        }));
+    // ── behaviouralQuestion ──────────────────────────────────────────────
+    if (Array.isArray(data.behaviouralQuestion)) {
+        data.behaviouralQuestion = data.behaviouralQuestion.map((q) => {
+            if (typeof q === "string") {
+                const parsed = tryParseJSON(q);
+                if (parsed && typeof parsed === "object" && parsed.question)
+                    return parsed;
+                return { question: q, intention: "Auto-generated intention", answer: "Auto-generated answer" };
+            }
+            return q;
+        });
     }
-    if (typeof data.skillGap?.[0] === "string") {
-        data.skillGap = data.skillGap.map((s) => ({
-            skill: s,
-            severity: "medium"
-        }));
+    // ── skillGap ─────────────────────────────────────────────────────────
+    if (Array.isArray(data.skillGap)) {
+        data.skillGap = data.skillGap.map((s) => {
+            if (typeof s === "string") {
+                const parsed = tryParseJSON(s);
+                if (parsed && typeof parsed === "object" && parsed.skill)
+                    return parsed;
+                return { skill: s, severity: "medium" };
+            }
+            return s;
+        });
     }
-    if (typeof data.preparationPlan?.[0] === "string") {
-        data.preparationPlan = data.preparationPlan.map((t, i) => ({
-            day: i + 1,
-            focus: "medium",
-            tasks: t
-        }));
+    // ── preparationPlan ──────────────────────────────────────────────────
+    if (Array.isArray(data.preparationPlan)) {
+        data.preparationPlan = data.preparationPlan.map((p, i) => {
+            if (typeof p === "string") {
+                const parsed = tryParseJSON(p);
+                if (parsed && typeof parsed === "object" && parsed.tasks)
+                    return parsed;
+                return { day: i + 1, focus: "medium", tasks: p };
+            }
+            return p;
+        });
     }
     return data;
 }

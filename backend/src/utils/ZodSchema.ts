@@ -79,4 +79,4 @@ export const tailoredResumeSchema = z.object({
 });
 
 export type ITailoredResume = z.infer<typeof tailoredResumeSchema>;
-
+

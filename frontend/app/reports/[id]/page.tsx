@@ -2,18 +2,240 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
-import { api, type FullReport } from "../../lib/api";
+import { api, type FullReport, type Question } from "../../lib/api";
 import Toast from "../../components/Toast";
 import Navbar from "../../components/Navbar";
 
 const SEV_COLOR: Record<string, string> = { high: "#ef4444", medium: "#f59e0b", low: "#22c55e" };
-const FOCUS_LABEL: Record<string, string> = { high: "🔴 High", medium: "🟡 Medium", low: "🟢 Low" };
+const SEV_BG: Record<string, string> = { high: "rgba(239,68,68,0.1)", medium: "rgba(245,158,11,0.1)", low: "rgba(34,197,94,0.1)" };
+const FOCUS_LABEL: Record<string, string> = { high: "🔴 High Priority", medium: "🟡 Medium Priority", low: "🟢 Low Priority" };
+
+/** Try to parse a JSON string, returning null on failure */
+function tryParse(s: string): any {
+  try { return JSON.parse(s); } catch { return null; }
+}
+
+/**
+ * Robust question extractor that handles every variant Gemini/old sanitizeAI
+ * might have produced:
+ *   1. Array of proper {question, intention, answer} objects  ← ideal
+ *   2. Array of JSON strings → parse each one
+ *   3. Array of objects whose .question field is itself a JSON string
+ *      (old sanitizeAI created these by storing the raw string as .question)
+ *   4. .question field contains MULTIPLE objects concatenated: "{...},{...}"
+ *      → wrap in [...] and parse as an array to recover all questions
+ */
+function extractQuestions(raw: any[]): Question[] {
+  const result: Question[] = [];
+
+  for (const item of raw) {
+    // Case 1 & 2: item itself might be a JSON string
+    const obj = typeof item === "string" ? (tryParse(item) ?? item) : item;
+
+    if (!obj || typeof obj !== "object") continue;
+
+    const qField = obj.question;
+
+    // Case 3 & 4: .question is a string starting with "{" → it's JSON-encoded
+    if (typeof qField === "string" && qField.trimStart().startsWith("{")) {
+      // Try as a JSON array of objects (multiple concatenated)
+      const asArray = tryParse(`[${qField}]`);
+      if (Array.isArray(asArray)) {
+        for (const q of asArray) {
+          if (q && typeof q === "object" && typeof q.question === "string") {
+            result.push({
+              question: q.question,
+              intention: q.intention ?? "",
+              answer: q.answer ?? "",
+            });
+          }
+        }
+        continue;
+      }
+      // Try as single JSON object
+      const single = tryParse(qField);
+      if (single && typeof single === "object" && typeof single.question === "string") {
+        result.push({
+          question: single.question,
+          intention: single.intention ?? obj.intention ?? "",
+          answer: single.answer ?? obj.answer ?? "",
+        });
+        continue;
+      }
+    }
+
+    // Case 1: clean object — use as-is
+    if (typeof qField === "string" && qField.length > 0) {
+      result.push({
+        question: qField,
+        intention: obj.intention ?? "",
+        answer: obj.answer ?? "",
+      });
+    }
+  }
+
+  return result;
+}
 
 function scoreColor(s: number) { return s >= 75 ? "#22c55e" : s >= 50 ? "#f59e0b" : "#ef4444"; }
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+// ── Accordion Item Component ──────────────────────────────────────────────────
+interface QuestionCardProps {
+  q: Question;
+  index: number;
+  prefix: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  intentionLabel: string;
+  answerLabel: string;
+  accentColor: string;
+}
+
+function QuestionCard({ q, index, isOpen, onToggle, intentionLabel, answerLabel, accentColor }: QuestionCardProps) {
+  return (
+    <div
+      style={{
+        background: "var(--bg-secondary)",
+        border: `1px solid ${isOpen ? accentColor + "40" : "var(--border)"}`,
+        borderRadius: 14,
+        overflow: "hidden",
+        transition: "border-color 0.25s ease, box-shadow 0.25s ease",
+        boxShadow: isOpen ? `0 0 0 1px ${accentColor}20, 0 4px 24px ${accentColor}10` : "none",
+      }}
+    >
+      {/* Header */}
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          padding: "18px 22px",
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          gap: 14,
+          textAlign: "left",
+        }}
+      >
+        <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flex: 1 }}>
+          {/* Number badge */}
+          <div style={{
+            minWidth: 32, height: 32,
+            borderRadius: 8,
+            background: isOpen ? accentColor : "var(--bg)",
+            border: `1.5px solid ${isOpen ? accentColor : "var(--border)"}`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+            transition: "all 0.2s ease",
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 800, color: isOpen ? "#fff" : "var(--text-muted)" }}>
+              Q{index + 1}
+            </span>
+          </div>
+          {/* Question text */}
+          <span style={{
+            fontSize: 14,
+            fontWeight: 600,
+            color: "var(--text-primary)",
+            lineHeight: 1.6,
+            paddingTop: 5,
+          }}>
+            {q.question}
+          </span>
+        </div>
+
+        {/* Chevron */}
+        <div style={{
+          width: 28, height: 28, borderRadius: 7,
+          background: "var(--bg)",
+          border: "1px solid var(--border)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+          transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+          transition: "transform 0.25s ease",
+        }}>
+          <svg width={12} height={12} viewBox="0 0 12 12" fill="none">
+            <path d="M2 4l4 4 4-4" stroke="var(--text-muted)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      </button>
+
+      {/* Expanded body */}
+      {isOpen && (
+        <div style={{ padding: "0 22px 22px", display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Divider */}
+          <div style={{ height: 1, background: `linear-gradient(to right, ${accentColor}40, transparent)` }} />
+
+          {/* Intention */}
+          <div>
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              fontSize: 11, fontWeight: 700, color: accentColor,
+              textTransform: "uppercase", letterSpacing: "0.08em",
+              marginBottom: 10,
+              padding: "4px 10px",
+              background: `${accentColor}15`,
+              borderRadius: 6,
+              border: `1px solid ${accentColor}30`,
+            }}>
+              {intentionLabel}
+            </div>
+            <p style={{
+              fontSize: 13,
+              color: "var(--text-secondary)",
+              lineHeight: 1.7,
+              margin: 0,
+              padding: "12px 16px",
+              background: "var(--bg)",
+              borderRadius: 10,
+              border: "1px solid var(--border)",
+              borderLeft: `3px solid ${accentColor}`,
+            }}>
+              {q.intention || "—"}
+            </p>
+          </div>
+
+          {/* Answer */}
+          <div>
+            <div style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              fontSize: 11, fontWeight: 700, color: "#22c55e",
+              textTransform: "uppercase", letterSpacing: "0.08em",
+              marginBottom: 10,
+              padding: "4px 10px",
+              background: "rgba(34,197,94,0.1)",
+              borderRadius: 6,
+              border: "1px solid rgba(34,197,94,0.25)",
+            }}>
+              {answerLabel}
+            </div>
+            <p style={{
+              fontSize: 13,
+              color: "var(--text-secondary)",
+              lineHeight: 1.75,
+              margin: 0,
+              padding: "12px 16px",
+              background: "var(--bg)",
+              borderRadius: 10,
+              border: "1px solid var(--border)",
+              borderLeft: "3px solid #22c55e",
+              whiteSpace: "pre-line",
+            }}>
+              {q.answer || "—"}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 export default function ReportDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -60,7 +282,6 @@ export default function ReportDetailPage() {
     router.push("/resume-preview");
   }, [report]);
 
-
   if (loading) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
@@ -73,10 +294,28 @@ export default function ReportDetailPage() {
   if (!report) return null;
 
   const score = report.matchScore ?? 0;
+
+  // Robust extraction — handles all legacy data formats
+  const technicalQuestions = extractQuestions(report.technicalQuestion as any[]);
+  const behaviouralQuestions = extractQuestions(report.behaviouralQuestion as any[]);
+
+  // Skill gaps & prep plan — simpler shape, safe parse is enough
+  const skillGaps = (report.skillGap as any[]).map((s) => {
+    if (typeof s === "string") return tryParse(s) ?? s;
+    return s;
+  }).filter(Boolean);
+
+  const prepPlan = (report.preparationPlan as any[]).map((p) => {
+    if (typeof p === "string") return tryParse(p) ?? p;
+    return p;
+  }).filter(Boolean);
+
+
+
   const tabs = [
-    { id: "tech", label: `Technical (${report.technicalQuestion.length})`, icon: "💻" },
-    { id: "behav", label: `Behavioural (${report.behaviouralQuestion.length})`, icon: "🧠" },
-    { id: "gap", label: `Skill Gaps (${report.skillGap.length})`, icon: "⚠️" },
+    { id: "tech", label: `Technical (${technicalQuestions.length})`, icon: "💻" },
+    { id: "behav", label: `Behavioural (${behaviouralQuestions.length})`, icon: "🧠" },
+    { id: "gap", label: `Skill Gaps (${skillGaps.length})`, icon: "⚠️" },
     { id: "plan", label: `Prep Plan`, icon: "📅" },
   ] as const;
 
@@ -146,10 +385,10 @@ export default function ReportDetailPage() {
           {/* Quick stats */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10, flexShrink: 0 }}>
             {[
-              { label: "Technical Qs", value: report.technicalQuestion.length },
-              { label: "Behavioural Qs", value: report.behaviouralQuestion.length },
-              { label: "Skill Gaps", value: report.skillGap.length },
-              { label: "Prep Days", value: report.preparationPlan.length },
+              { label: "Technical Qs", value: technicalQuestions.length },
+              { label: "Behavioural Qs", value: behaviouralQuestions.length },
+              { label: "Skill Gaps", value: skillGaps.length },
+              { label: "Prep Days", value: prepPlan.length },
             ].map(({ label, value }) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 20, alignItems: "center" }}>
                 <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{label}</span>
@@ -178,72 +417,67 @@ export default function ReportDetailPage() {
           ))}
         </div>
 
-        {/* Technical Questions */}
+        {/* ── Technical Questions ── */}
         {activeSection === "tech" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {report.technicalQuestion.map((q, i) => (
-              <div key={i} className="glass-card" style={{ padding: 0, overflow: "hidden" }}>
-                <button
-                  onClick={() => toggleOpen(`t${i}`)}
-                  style={{ width: "100%", padding: "18px 24px", background: "none", border: "none", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, textAlign: "left" }}
-                >
-                  <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 100, background: "var(--bg-secondary)", border: "1px solid var(--border)", color: "var(--text-muted)", flexShrink: 0, marginTop: 1 }}>Q{i + 1}</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.5 }}>{q.question}</span>
-                  </div>
-                  <span style={{ fontSize: 18, color: "var(--text-muted)", flexShrink: 0, transform: open.has(`t${i}`) ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>⌄</span>
-                </button>
-                {open.has(`t${i}`) && (
-                  <div style={{ padding: "0 24px 20px" }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>💡 Intention</div>
-                    <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.65, marginBottom: 16, padding: "10px 14px", background: "var(--bg-secondary)", borderRadius: 8, border: "1px solid var(--border)" }}>{q.intention}</p>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>✅ Model Answer</div>
-                    <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.7 }}>{q.answer}</p>
-                  </div>
-                )}
-              </div>
+            {technicalQuestions.length === 0 && (
+              <div style={{ textAlign: "center", padding: 48, color: "var(--text-muted)", fontSize: 14 }}>No technical questions found.</div>
+            )}
+            {technicalQuestions.map((q, i) => (
+              <QuestionCard
+                key={i}
+                q={q}
+                index={i}
+                prefix="t"
+                isOpen={open.has(`t${i}`)}
+                onToggle={() => toggleOpen(`t${i}`)}
+                intentionLabel="💡 What's Being Assessed"
+                answerLabel="✅ Model Answer"
+                accentColor="#6366f1"
+              />
             ))}
           </div>
         )}
 
-        {/* Behavioural */}
+        {/* ── Behavioural Questions ── */}
         {activeSection === "behav" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {report.behaviouralQuestion.map((q, i) => (
-              <div key={i} className="glass-card" style={{ padding: 0, overflow: "hidden" }}>
-                <button
-                  onClick={() => toggleOpen(`b${i}`)}
-                  style={{ width: "100%", padding: "18px 24px", background: "none", border: "none", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, textAlign: "left" }}
-                >
-                  <div style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 100, background: "var(--bg-secondary)", border: "1px solid var(--border)", color: "var(--text-muted)", flexShrink: 0, marginTop: 1 }}>Q{i + 1}</span>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.5 }}>{q.question}</span>
-                  </div>
-                  <span style={{ fontSize: 18, color: "var(--text-muted)", flexShrink: 0, transform: open.has(`b${i}`) ? "rotate(180deg)" : "rotate(0)", transition: "transform 0.2s" }}>⌄</span>
-                </button>
-                {open.has(`b${i}`) && (
-                  <div style={{ padding: "0 24px 20px" }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>🎯 Trait</div>
-                    <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.65, marginBottom: 16, padding: "10px 14px", background: "var(--bg-secondary)", borderRadius: 8, border: "1px solid var(--border)" }}>{q.intention}</p>
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>⭐ STAR Answer</div>
-                    <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.7 }}>{q.answer}</p>
-                  </div>
-                )}
-              </div>
+            {behaviouralQuestions.length === 0 && (
+              <div style={{ textAlign: "center", padding: 48, color: "var(--text-muted)", fontSize: 14 }}>No behavioural questions found.</div>
+            )}
+            {behaviouralQuestions.map((q, i) => (
+              <QuestionCard
+                key={i}
+                q={q}
+                index={i}
+                prefix="b"
+                isOpen={open.has(`b${i}`)}
+                onToggle={() => toggleOpen(`b${i}`)}
+                intentionLabel="🎯 Trait Being Tested"
+                answerLabel="⭐ STAR Answer"
+                accentColor="#f59e0b"
+              />
             ))}
           </div>
         )}
 
-        {/* Skill Gaps */}
+        {/* ── Skill Gaps ── */}
         {activeSection === "gap" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14 }}>
-            {report.skillGap.map((sg, i) => (
+            {skillGaps.map((sg: any, i: number) => (
               <div key={i} className="glass-card" style={{ padding: "20px 24px", display: "flex", gap: 14, alignItems: "center" }}>
-                <div style={{ width: 10, height: 10, borderRadius: "50%", background: SEV_COLOR[sg.severity], flexShrink: 0 }} />
+                <div style={{ width: 10, height: 10, borderRadius: "50%", background: SEV_COLOR[sg.severity] ?? "#888", flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-primary)" }}>{sg.skill}</div>
-                  <div style={{ fontSize: 12, color: SEV_COLOR[sg.severity], fontWeight: 600, marginTop: 4 }}>
-                    {sg.severity.toUpperCase()} PRIORITY
+                  <div style={{
+                    fontSize: 11, fontWeight: 700, marginTop: 5,
+                    padding: "3px 8px", borderRadius: 5,
+                    display: "inline-block",
+                    background: SEV_BG[sg.severity] ?? "var(--bg-secondary)",
+                    color: SEV_COLOR[sg.severity] ?? "var(--text-muted)",
+                    border: `1px solid ${SEV_COLOR[sg.severity] ?? "var(--border)"}40`,
+                  }}>
+                    {(sg.severity ?? "unknown").toUpperCase()} PRIORITY
                   </div>
                 </div>
               </div>
@@ -251,10 +485,10 @@ export default function ReportDetailPage() {
           </div>
         )}
 
-        {/* Prep Plan */}
+        {/* ── Prep Plan ── */}
         {activeSection === "plan" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {report.preparationPlan.map((p) => (
+            {prepPlan.map((p: any) => (
               <div key={p.day} className="glass-card" style={{ padding: "20px 28px", display: "flex", gap: 24, alignItems: "flex-start" }}>
                 <div style={{ textAlign: "center", flexShrink: 0, minWidth: 48 }}>
                   <div style={{ fontSize: 22, fontWeight: 800, color: "var(--accent)", letterSpacing: "-0.04em" }}>D{p.day}</div>
@@ -262,14 +496,22 @@ export default function ReportDetailPage() {
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ marginBottom: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: SEV_COLOR[p.focus] }}>{FOCUS_LABEL[p.focus]}</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: SEV_COLOR[p.focus] ?? "var(--text-muted)",
+                      padding: "3px 10px", borderRadius: 6,
+                      background: SEV_BG[p.focus] ?? "var(--bg-secondary)",
+                      border: `1px solid ${SEV_COLOR[p.focus] ?? "var(--border)"}30`,
+                    }}>
+                      {FOCUS_LABEL[p.focus] ?? p.focus}
+                    </span>
                   </div>
-                  <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.7 }}>{p.tasks}</p>
+                  <p style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.7, margin: 0 }}>{p.tasks}</p>
                 </div>
               </div>
             ))}
           </div>
         )}
+
       </div>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
