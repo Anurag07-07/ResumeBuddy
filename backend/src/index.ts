@@ -10,14 +10,23 @@ const app = express();
 app.use(express.json());
 
 const allowedOrigins = [
-  "https://resume-buddy-zknd-cfxtv3lmy-anurag07-07s-projects.vercel.app"
+  "https://resume-buddy-pi.vercel.app",
+  "http://localhost:3000",
+  "https://resume-buddy-git-main-anurag07-07s-projects.vercel.app",
 ];
 
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-}));
-
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  })
+);
 app.use(cookieParser());
 
 import userauth from "./routes/auth.route.js";

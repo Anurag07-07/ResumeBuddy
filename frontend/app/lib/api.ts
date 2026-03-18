@@ -1,5 +1,5 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL
-//  || "http://localhost:5000/api/v1";
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL as string  
+
 
 async function request<T>(
   endpoint: string,
