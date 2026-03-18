@@ -3,7 +3,7 @@ import * as pdfParse from "pdf-parse";
 import interviewReportSchema from "../models/interviewReport.schema.js";
 import { generateWithRetry, generateTailoredResumeWithRetry } from "../services/ai.service.js";
 
-// ── POST /interview ───────────────────────────────────────────────────────────
+// ── POST /interview ─────────────────────────────────────────────────────────
 export const InterView = async (req: Request, res: Response) => {
   try {
     const { selfDescription, jobDescription } = req.body;
