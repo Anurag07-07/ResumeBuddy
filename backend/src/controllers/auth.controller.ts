@@ -110,10 +110,9 @@ export const Signin = async (req:Request,res:Response) => {
 
 export const Logout = async (req: Request, res: Response) => {
   try {
-    const rawToken = req.cookies.token;
+    const token = req.cookies.token;
 
-    if (rawToken && rawToken.startsWith("Bearer ")) {
-      const token = rawToken.split(" ")[1];
+    if (token) {
       const decoded = jwt.decode(token) as { exp: number };
 
       if (decoded && decoded.exp) {
@@ -126,13 +125,17 @@ export const Logout = async (req: Request, res: Response) => {
       }
     }
 
-    res.clearCookie("token");
+    res.clearCookie("token", {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+    });
+
     return res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
-
 export const getMe = async (req:Request,res:Response) => {
   try {
     //Get The User Details
