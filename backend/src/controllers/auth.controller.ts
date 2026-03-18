@@ -36,10 +36,11 @@ export const Signup = async (req:Request,res:Response) => {
       
       //Create A Token
 
-      res.cookie("token", `Bearer ${token}`, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production"
-      });
+      res.cookie("token", token, {
+  httpOnly: true,
+  secure: true,       
+  sameSite: "none",  
+});
 
       return res.status(200).json({
         message:`User Created Successfully`,
@@ -74,10 +75,11 @@ export const Signin = async (req:Request,res:Response) => {
         
         
         //Create A Token
-        res.cookie("token", `Bearer ${token}`, {
-          httpOnly: true, 
-          secure: process.env.NODE_ENV === "production"
-        });
+        res.cookie("token", token, {
+  httpOnly: true,
+  secure: true,       
+  sameSite: "none",   
+});
 
         return res.status(200).json({
           message:`User Login`,

@@ -9,6 +9,8 @@ const app = express();
 
 app.use(express.json());
 
+
+app.set("trust proxy", 1);
 const allowedOrigins = [
   "https://resume-buddy-pi.vercel.app",
   "http://localhost:3000",
