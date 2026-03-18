@@ -12,6 +12,7 @@ const allowedOrigins = [
   "https://resume-buddy-zknd.vercel.app",
   "http://localhost:3000",
   "http://localhost:3001",
+  "https://resume-buddy-zknd-cfxtv3lmy-anurag07-07s-projects.vercel.app"
 ];
 
 app.use(cors({
